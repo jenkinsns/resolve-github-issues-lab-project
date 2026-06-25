@@ -17,80 +17,70 @@ namespace ContosoShopEasy.Services
             _orderRepository = orderRepository;
         }
 
-        // Vulnerable payment processing method
+        // Payment processing method with sensitive data handling protections
         public bool ProcessPayment(string cardNumber, string cardHolderName, string expiryDate, string cvv, decimal amount)
         {
-            // Security vulnerability: Log sensitive payment information
-            Console.WriteLine($"[DEBUG] Processing payment for card: {cardNumber}");
-            Console.WriteLine($"[DEBUG] Card holder: {cardHolderName}");
-            Console.WriteLine($"[DEBUG] Expiry: {expiryDate}, CVV: {cvv}");
+            string sanitizedCardNumber = SanitizeCardNumber(cardNumber);
+            string maskedCardNumber = MaskCardNumber(sanitizedCardNumber);
+            string cardType = GetCardType(sanitizedCardNumber);
+            string cardLastFour = GetCardLastFourDigits(sanitizedCardNumber);
+
+            Console.WriteLine("[DEBUG] Processing payment request");
             Console.WriteLine($"[DEBUG] Amount: ${amount}");
-            
-            // Security vulnerability: Log configuration details
             Console.WriteLine($"[DEBUG] Using payment gateway: {PAYMENT_GATEWAY_URL}");
-            Console.WriteLine($"[DEBUG] Merchant: {MERCHANT_NAME}");
             Console.WriteLine($"[DEBUG] Gateway version: {GATEWAY_VERSION}");
 
-            // Simulate payment validation (vulnerable)
-            if (!ValidateCardNumber(cardNumber))
+            if (!ValidateCardNumber(sanitizedCardNumber))
             {
-                Console.WriteLine($"[ERROR] Invalid card number: {cardNumber}");
+                Console.WriteLine($"[ERROR] Invalid card number ending in {cardLastFour}");
                 return false;
             }
 
             if (!ValidateExpiryDate(expiryDate))
             {
-                Console.WriteLine($"[ERROR] Invalid or expired date: {expiryDate}");
+                Console.WriteLine("[ERROR] Invalid or expired payment expiry date");
                 return false;
             }
 
-            // Simulate payment processing
             Console.WriteLine("[INFO] Connecting to payment gateway...");
             Thread.Sleep(1000); // Simulate network delay
 
-            // Security vulnerability: Generate predictable transaction IDs
-            string transactionId = GenerateTransactionId(cardNumber, amount);
-            
-            // Security vulnerability: Store sensitive card data
+            string transactionId = GenerateTransactionId(sanitizedCardNumber, amount);
+
             var paymentInfo = new PaymentInfo
             {
                 Method = PaymentMethod.CreditCard,
-                CardNumber = cardNumber, // Should never store full card numbers
+                CardLastFourDigits = cardLastFour,
+                CardType = cardType,
                 CardHolderName = cardHolderName,
                 ExpiryDate = expiryDate,
-                CVV = cvv, // Should never store CVV
                 Amount = amount,
                 ProcessedDate = DateTime.UtcNow,
                 Status = PaymentStatus.Approved,
                 TransactionId = transactionId
             };
 
-            Console.WriteLine($"[SUCCESS] Payment processed successfully!");
+            Console.WriteLine("[SUCCESS] Payment processed successfully!");
             Console.WriteLine($"[DEBUG] Transaction ID: {transactionId}");
-            
-            // Security vulnerability: Log complete payment details
-            Console.WriteLine($"[LOG] Payment completed - Card: {cardNumber}, Amount: ${amount}, Transaction: {transactionId}");
+            Console.WriteLine($"[LOG] Payment completed - Card: {maskedCardNumber}, Amount: ${amount}, Transaction: {transactionId}");
 
             return true;
         }
 
-        // Vulnerable card validation
         private bool ValidateCardNumber(string cardNumber)
         {
-            // Security vulnerability: Weak validation - only checks length
             if (string.IsNullOrEmpty(cardNumber))
                 return false;
 
-            // Remove spaces and dashes
-            cardNumber = cardNumber.Replace(" ", "").Replace("-", "");
+            string sanitized = SanitizeCardNumber(cardNumber);
+            if (sanitized.Length < 13 || sanitized.Length > 19 || !sanitized.All(char.IsDigit))
+                return false;
 
-            // Security vulnerability: Accept any 13-19 digit number
-            return cardNumber.Length >= 13 && cardNumber.Length <= 19 && cardNumber.All(char.IsDigit);
+            return IsLuhnValid(sanitized);
         }
 
         private bool ValidateExpiryDate(string expiryDate)
         {
-            // Security vulnerability: Basic validation only
             if (string.IsNullOrEmpty(expiryDate) || !expiryDate.Contains("/"))
                 return false;
 
@@ -106,6 +96,62 @@ namespace ContosoShopEasy.Services
             }
 
             return false;
+        }
+
+        private string SanitizeCardNumber(string cardNumber)
+        {
+            return cardNumber?.Replace(" ", string.Empty).Replace("-", string.Empty) ?? string.Empty;
+        }
+
+        private string MaskCardNumber(string cardNumber)
+        {
+            string sanitized = SanitizeCardNumber(cardNumber);
+            if (sanitized.Length <= 4)
+                return sanitized;
+
+            return new string('*', sanitized.Length - 4) + sanitized.Substring(sanitized.Length - 4);
+        }
+
+        private string GetCardLastFourDigits(string cardNumber)
+        {
+            string sanitized = SanitizeCardNumber(cardNumber);
+            return sanitized.Length >= 4 ? sanitized[^4..] : sanitized;
+        }
+
+        private string GetCardType(string cardNumber)
+        {
+            string sanitized = SanitizeCardNumber(cardNumber);
+            if (sanitized.StartsWith("4"))
+                return "Visa";
+            if (sanitized.StartsWith("5") && sanitized.Length >= 2 && "12345".Contains(sanitized[1]))
+                return "Mastercard";
+            if (sanitized.StartsWith("34") || sanitized.StartsWith("37"))
+                return "American Express";
+            if (sanitized.StartsWith("6"))
+                return "Discover";
+            return "Unknown";
+        }
+
+        private bool IsLuhnValid(string cardNumber)
+        {
+            int sum = 0;
+            bool alternate = false;
+
+            for (int i = cardNumber.Length - 1; i >= 0; i--)
+            {
+                int digit = cardNumber[i] - '0';
+                if (alternate)
+                {
+                    digit *= 2;
+                    if (digit > 9)
+                        digit -= 9;
+                }
+
+                sum += digit;
+                alternate = !alternate;
+            }
+
+            return sum % 10 == 0;
         }
 
         // Security vulnerability: Predictable transaction ID generation

@@ -170,7 +170,7 @@ namespace ContosoShopEasy.Security
             Console.WriteLine("Password encryption: MD5 (WEAK)");
             Console.WriteLine("Credit card storage: FULL NUMBERS (INSECURE)");
             Console.WriteLine("Logging level: DEBUG (EXPOSES SENSITIVE DATA)");
-            Console.WriteLine("SQL injection protection: DISABLED");
+            Console.WriteLine("SQL injection protection: ENABLED");
             Console.WriteLine("XSS protection: MINIMAL");
             
             Console.WriteLine("=== End Vulnerability List ===");

@@ -1,3 +1,4 @@
+using System.Text.RegularExpressions;
 using ContosoShopEasy.Models;
 using ContosoShopEasy.Data;
 
@@ -27,17 +28,21 @@ namespace ContosoShopEasy.Services
             return _productRepository.GetProductsByCategory(categoryId);
         }
 
-        // Vulnerable search method - SQL injection risk
+        private static readonly Regex _safeSearchRegex = new(@"[^\w\s\-\&']+", RegexOptions.Compiled);
+
         public List<Product> SearchProducts(string searchTerm)
         {
-            // This simulates a SQL injection vulnerability by directly using user input
-            // In the education context, this would be flagged as a security issue
-            Console.WriteLine($"[DEBUG] Executing search query with term: '{searchTerm}'");
-            
-            // Simulate SQL injection vulnerability by logging dangerous query
-            string simulatedQuery = $"SELECT * FROM Products WHERE Name LIKE '%{searchTerm}%' OR Description LIKE '%{searchTerm}%'";
-            Console.WriteLine($"[DEBUG] SQL Query: {simulatedQuery}");
-            
+            if (string.IsNullOrWhiteSpace(searchTerm))
+                return new List<Product>();
+
+            searchTerm = searchTerm.Trim();
+            if (searchTerm.Length > 100)
+                searchTerm = searchTerm.Substring(0, 100);
+
+            searchTerm = _safeSearchRegex.Replace(searchTerm, string.Empty);
+            if (string.IsNullOrWhiteSpace(searchTerm))
+                return new List<Product>();
+
             return _productRepository.SearchProducts(searchTerm);
         }
 
